@@ -67,4 +67,4 @@
 ---
 
 ## 6. Résumé
-Cette charte de projet définit les objectifs, les rôles, le périmètre, les risques et le plan de réalisation du simulateur pédagogique DDoS. Elle sert de référence pour guider le développement et assurer la réussite du projet dans le temps imparti.
+Cette charte de projet définit les objectifs, les rôles, le périmètre, les risques et le plan de réalisation du simulateur de DDoS. Elle sert de référence pour guider le développement et assurer la réussite du projet dans le temps imparti.
