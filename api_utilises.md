@@ -1,4 +1,4 @@
-# 📖 Documentation API Simulateur DDoS (v1)
+# 📖 Documentation API Simulateur DDoS
 
 ---
 
