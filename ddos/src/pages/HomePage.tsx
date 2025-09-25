@@ -57,3 +57,5 @@ export function HomePage({ setCurrentPage }: HomePageProps) {
     </div>
   );
 }
+
+export default HomePage;
