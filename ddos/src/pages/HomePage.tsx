@@ -1,6 +1,5 @@
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { ImageWithFallback } from "./components/image/ImageWithFallback";
 
 interface HomePageProps {
   setCurrentPage: (page: string) => void;
@@ -14,10 +13,10 @@ export function HomePage({ setCurrentPage }: HomePageProps) {
           <h1 className="mb-6 text-slate-800">Qu'est-ce qu'une attaque DDoS ?</h1>
           
           <div className="mb-8">
-            <ImageWithFallback
-              src="https://images.unsplash.com/photo-1664526937033-fe2c11f1be25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuZXR3b3JrJTIwc2VjdXJpdHklMjBkZG9zJTIwYXR0YWNrJTIwZGlhZ3JhbXxlbnwxfHx8fDE3NTc2ODMzODF8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-              alt="Illustration d'une attaque DDoS sur un réseau"
-              className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
+            <img
+              src="/ddos.png"
+              alt="Illustration d'une attaque DDoS"
+              className="mx-auto w-full max-w-2xl rounded-lg shadow-lg"
             />
           </div>
         </div>
