@@ -14,7 +14,7 @@ export function HomePage({ setCurrentPage }: HomePageProps) {
           
           <div className="mb-8">
             <img
-              src="/ddos.png"
+              src="public/ddos.png.jpg"
               alt="Illustration d'une attaque DDoS"
               className="mx-auto w-full max-w-2xl rounded-lg shadow-lg"
             />
