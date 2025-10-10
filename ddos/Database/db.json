@@ -1,0 +1,23 @@
+{
+  "users": [
+    { "id": 1, "email": "admin@example.com", "password": "admin", "role": "ADMIN" },
+    { "id": 2, "email": "user1@example.com", "password": "user1", "role": "USER" }
+  ],
+  "simulations": [
+    {
+      "id": 101,
+      "userId": 2,
+      "method": "DDOS",
+      "ip": "192.168.0.10",
+      "port": 443,
+      "packetSize": 1024,
+      "durationSec": 15,
+      "summary": "Attaque DDoS simulée (15s, 50 événements).",
+      "console": [
+        "[00:01] Packet 1 envoyé → latence ~42ms",
+        "[00:02] Packet 2 envoyé → latence ~40ms"
+      ],
+      "createdAt": "2025-09-25T10:00:00Z"
+    }
+  ]
+}

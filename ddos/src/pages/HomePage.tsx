@@ -1,17 +1,16 @@
+import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 
-interface HomePageProps {
-  setCurrentPage: (page: string) => void;
-}
-
-export function HomePage({ setCurrentPage }: HomePageProps) {
+export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-4xl mx-auto px-6 py-12">
         <div className="text-center mb-12">
-          <h1 className="mb-6 text-slate-800">Qu'est-ce qu'une attaque DDoS ?</h1>
-          
+          <h1 className="text-3xl font-bold mb-6 text-slate-800">
+            Qu'est-ce qu'une attaque DDoS ?
+          </h1>
+
           <div className="mb-8">
             <img
               src="public/ddos.png.jpg"
@@ -27,29 +26,21 @@ export function HomePage({ setCurrentPage }: HomePageProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-slate-700">
-              Une attaque DDoS (Distributed Denial of Service) est une cyberattaque qui vise à rendre un service, 
-              un serveur ou un réseau indisponible en le saturant avec un trafic massif provenant de multiples sources. 
-              L'objectif est de consommer toutes les ressources disponibles (bande passante, mémoire, CPU) pour empêcher 
-              les utilisateurs légitimes d'accéder au service.
+              Une attaque DDoS (Distributed Denial of Service) vise à rendre un service indisponible en le
+              saturant de trafic provenant de multiples sources.
             </p>
             <p className="text-slate-700">
-              Ces attaques exploitent des réseaux de machines compromises (botnets) pour générer un volume 
-              de requêtes si important que le système ciblé ne peut plus répondre normalement. Les conséquences 
-              peuvent être désastreuses : perte de revenus, dégradation de la réputation, et interruption des services critiques.
+              Ces attaques s'appuient souvent sur des botnets. Conséquences possibles : perte de revenus,
+              réputation dégradée et interruption de service.
             </p>
             <p className="text-slate-700">
-              Il est essentiel de comprendre ces mécanismes pour mieux s'en protéger. Notre simulateur pédagogique 
-              vous permettra d'observer le comportement d'un réseau face à différents types de sollicitations, 
-              dans un environnement contrôlé et sécurisé.
+              Cette application est <strong>100% pédagogique.</strong>.
             </p>
           </CardContent>
         </Card>
 
         <div className="text-center">
-          <Button 
-            onClick={() => setCurrentPage('simulation')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-          >
+          <Button as="a" href="/simulate" className="px-8 py-3">
             Découvrir la simulation
           </Button>
         </div>
@@ -57,5 +48,3 @@ export function HomePage({ setCurrentPage }: HomePageProps) {
     </div>
   );
 }
-
-export default HomePage;
