@@ -10,7 +10,7 @@ import { ProtectedRoute } from "./context/AuthContext";
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-secondary">
+      <div className="min-h-screen bg-slate-950">
         <NavBar />
         <div className="p-6">
           <Routes>
@@ -19,9 +19,7 @@ export default function App() {
             <Route
               path="/simulate"
               element={
-                <ProtectedRoute>
                   <SimulationPage />
-                </ProtectedRoute>
               }
             />
 
