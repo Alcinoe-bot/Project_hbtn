@@ -7,9 +7,6 @@
 - **Outil** : Git + GitHub  
 - **Organisation des branches** :  
   - `main` → version stable, prête à déploiement.  
-  - `develop` → intégration continue des nouvelles fonctionnalités.  
-  - `feature/*` → une branche par fonctionnalité (ex: `feature/auth`, `feature/simulation`).  
-  - `fix/*` → corrections de bugs.  
 
 - **Workflow** :  
   - Chaque PR doit être relue (**code review**) avant merge.  
