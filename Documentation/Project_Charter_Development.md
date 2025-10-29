@@ -4,7 +4,7 @@
 - **But** : Sensibiliser les entreprises aux vulnérabilités liées aux attaques par déni de service (DDoS) via un outil simple et pédagogique.  
 - **Objectifs SMART** :  
   1. Fournir une interface web permettant de saisir une IP, un port, une méthode de test, la taille des paquets et la durée, afin de lancer une simulation pédagogique.  
-  2. Générer un retour console réaliste affichant l’envoi de paquets et les temps de réponse simulés.  
+  2. Générer un retour console réaliste affichant l’envoi de paquets et les temps de réponse.  
   3. Permettre aux utilisateurs authentifiés de consulter l’historique de leurs simulations.  
 
 ---
