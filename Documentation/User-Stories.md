@@ -46,6 +46,6 @@
 
 -   **Toute fonctionnalité permettant de lancer de véritables attaques DDoS sur un tiers extérieur.** L'application est strictement pédagogique et se limite à une **attaque sur un serveur que l'on possède**.
     **Justification technique :**
-    -   Aucun paquet réseau réel n'est généré ou envoyé vers des adresses IP externes (uniquement en accord avec le propriétaire).
+    -   Aucun paquet n'est envoyé vers des adresses IP externes (uniquement en accord avec le propriétaire).
     -   L'attaque s'exécute entièrement côté client (dans le navigateur) ou via un backend qui mock les résultats.
     -   Toute tentative d'étendre l'application pour générer du trafic réseau réel hors scope est interdit.
