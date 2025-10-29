@@ -2,21 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-slate-50 text-slate-900 antialiased font-sans; }
 }
 
-html, body {
-  background-color: rgb(15, 23, 42); /* slate-950 */
-  color: rgb(241, 245, 249); /* slate-50 */
-}
+@layer components {
+  .navbar { @apply bg-nav-bg text-white px-6 py-4 flex items-center gap-6; }
+  .brand  { @apply text-lg font-semibold tracking-tight mr-2; }
+  .nav-link { @apply px-3 py-1.5 rounded-lg text-sm text-slate-200 hover:bg-nav-pill hover:text-white transition; }
+  .nav-link--active { @apply bg-slate-700 text-white font-semibold; }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  .connected { @apply ml-auto text-sm text-slate-200; }
+  .badge-admin { @apply ml-2 inline-flex items-center rounded-md bg-red-600 px-2 py-0.5 text-xs font-semibold; }
+
+  .console-dark { @apply bg-slate-950 text-slate-300 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm; }
+  .console-dark::-webkit-scrollbar { height: 8px; width: 8px; }
+  .console-dark::-webkit-scrollbar-thumb { background: #334155; border-radius: 6px; }
 }

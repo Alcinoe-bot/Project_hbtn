@@ -1,6 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 
+const SAFE_MIN_PACKET_BYTES = 1;     // taille paquet mini (octets)
+const SAFE_MAX_PACKET_BYTES = 256;   // [MODIF] taille paquet maxi (octets)
+const SAFE_MIN_DURATION_SEC  = 1;    // durée mini (secondes)
+const SAFE_MAX_DURATION_SEC  = 10;   // [MODIF] durée maxi (secondes)
+
+//Utilitaires détection local / URL Socket.IO
 function isHostLocal(host: string) {
   return (
     host === "localhost" ||
@@ -13,18 +19,44 @@ function isHostLocal(host: string) {
 }
 
 function getSocketURL() {
-  const host = window.location.host.split(":")[0];
+  const host = window.location.hostname; // Utilise hostname au lieu de host
   const isLocal = isHostLocal(host);
-  const socketURL = isLocal ? `http://${host}:3000` : "/";
+  const socketURL = isLocal ? `http://localhost:3000` : "/";
+  console.log("🌐 Socket URL configurée:", socketURL);
+  console.log("🔍 Host détecté:", host, "- Local:", isLocal);
   return socketURL;
 }
 
-const socket = io(getSocketURL());
+//Client Socket.IO avec reconnexion
+const socket = io(getSocketURL(), {
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: 5
+});
+
+// Logs connexion Socket.IO
+socket.on("connect", () => {
+  console.log("✅ Socket.IO connecté - ID:", socket.id);
+  console.log("🔗 URL de connexion:", socket.io.uri);
+});
+
+socket.on("disconnect", (reason) => {
+  console.log("❌ Socket.IO déconnecté - Raison:", reason);
+});
+
+socket.on("connect_error", (error) => {
+  console.error("❌ Erreur de connexion Socket.IO:", error.message);
+});
+
+socket.on("reconnect_attempt", (attempt) => {
+  console.log("🔄 Tentative de reconnexion #", attempt);
+});
 
 interface ConfigProps {
   onClose: () => void;
 }
 
+//Modale "Configuration" (proxies / user-agents) – optionnelle
 function ConfigureProxiesAndAgentsView({ onClose }: ConfigProps) {
   const [loadingConfiguration, setLoadingConfiguration] = useState(false);
   const [configuration, setConfiguration] = useState<string[]>(["", ""]);
@@ -145,49 +177,109 @@ function ConfigureProxiesAndAgentsView({ onClose }: ConfigProps) {
   );
 }
 
+//Page Simulation – UI + logique Socket.IO
 function SimulationPage() {
   const [isAttacking, setIsAttacking] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [target, setTarget] = useState("");
+  const [port, setPort] = useState(8080);
   const [attackMethod, setAttackMethod] = useState("http_flood");
-  const [packetSize, setPacketSize] = useState(64);
-  const [duration, setDuration] = useState(60);
+
+  // [MODIF] valeurs par défaut déjà compatibles avec les limites
+  const [packetSize, setPacketSize] = useState(SAFE_MAX_PACKET_BYTES);
+  const [duration, setDuration] = useState(SAFE_MAX_DURATION_SEC);
+
   const [packetDelay, setPacketDelay] = useState(100);
   const [stats, setStats] = useState({
     pps: 0,
     bots: 0,
     totalPackets: 0,
   });
-  const [openedConfig, setOpenedConfig] = useState(false);
 
+  // Timer de sécurité local : stop auto au-delà de la durée
+  const attackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Écoute des événements “stats” et “attackEnd” émis par le serveur
   useEffect(() => {
+    console.log("🎯 Configuration des listeners Socket.IO");
+
     socket.on("stats", (data) => {
+      console.log("📊 Stats reçues du serveur:", data);
       setStats((old) => ({
         pps: data.pps || old.pps,
         bots: data.bots || old.bots,
         totalPackets: data.totalPackets || old.totalPackets,
       }));
-      if (data.log) addLog(data.log);
+      if (data.log) {
+        console.log("📝 Log reçu:", data.log);
+        addLog(data.log);
+      }
     });
 
     socket.on("attackEnd", () => {
+      console.log("🛑 Événement 'attackEnd' reçu du serveur");
       setIsAttacking(false);
       addLog("✓ Simulation terminée");
+      
+      // Nettoyer le timer si l'attaque se termine normalement
+      if (attackTimerRef.current) {
+        clearTimeout(attackTimerRef.current);
+        attackTimerRef.current = null;
+        console.log("⏱️ Timer de sécurité annulé");
+      }
     });
 
+    // Log tout événement reçu (debug)
+    socket.onAny((eventName, ...args) => {
+      console.log(`📨 Événement reçu: ${eventName}`, args);
+    });
+
+    // Cleanup listeners au démontage
     return () => {
+      console.log("🧹 Nettoyage des listeners Socket.IO");
       socket.off("stats");
       socket.off("attackEnd");
+      socket.offAny();
     };
   }, []);
 
+  /* Ajout d'un message dans la console pédagogique */
   const addLog = (message: string) => {
-    setLogs((prev) => [message, ...prev].slice(0, 20));
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev].slice(0, 20));
   };
 
+  //Lancer la simulation + [MODIF] validations fortes (taille paquet / durée) + clamp inputs
   const startAttack = () => {
+    // validations simples
     if (!target.trim()) {
       alert("Veuillez entrer une cible !");
+      return;
+    }
+    // Port valide
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      alert("Veuillez saisir un port valide (1–65535).");
+      return;
+    }
+    // [MODIF] Taille paquet bornée côté front (sécurité pédagogique)
+    if (packetSize < SAFE_MIN_PACKET_BYTES || packetSize > SAFE_MAX_PACKET_BYTES) {
+      alert(`Taille des paquets invalide. Autorisé: ${SAFE_MIN_PACKET_BYTES}–${SAFE_MAX_PACKET_BYTES} octets.`);
+      return;
+    }
+    // [MODIF] Durée bornée côté front
+    if (duration < SAFE_MIN_DURATION_SEC || duration > SAFE_MAX_DURATION_SEC) {
+      alert(`Durée invalide. Autorisé: ${SAFE_MIN_DURATION_SEC}–${SAFE_MAX_DURATION_SEC} secondes.`);
+      return;
+    }
+
+    console.log("🚀 Démarrage de l'attaque");
+    console.log("🔌 Socket connecté:", socket.connected);
+    console.log("🆔 Socket ID:", socket.id);
+
+    if (!socket.connected) {
+      console.error("❌ Socket non connecté! Tentative de reconnexion...");
+      addLog("❌ Erreur: Socket non connecté");
+      socket.connect();
       return;
     }
 
@@ -196,20 +288,70 @@ function SimulationPage() {
     setLogs([]);
     addLog("⚡ Initialisation de la simulation...");
 
-    socket.emit("startAttack", {
+    const attackData = {
       target,
+      port,
       packetSize,
       duration,
       packetDelay,
       attackMethod,
+    };
+
+    console.log("📤 Envoi de 'startAttack' avec:", attackData);
+    
+    // Timer de sécurité côté client (durée + marge)
+    attackTimerRef.current = setTimeout(() => {
+      console.log("⏰ Timer de sécurité déclenché - Arrêt automatique après", duration, "secondes");
+      setIsAttacking(false);
+      addLog("⏰ Simulation terminée (timer local)");
+      attackTimerRef.current = null;
+    }, (duration + 2) * 1000); // +2 secondes de marge
+
+    console.log("⏱️ Timer de sécurité configuré pour", duration + 2, "secondes");
+
+    // Émission avec ack/timeout (meilleure UX)
+    socket.timeout(5000).emit("startAttack", attackData, (err, response) => {
+      if (err) {
+        console.error("❌ Timeout lors de l'envoi de startAttack:", err);
+        addLog("❌ Erreur: Pas de réponse du serveur");
+      } else {
+        console.log("✅ Accusé de réception du serveur:", response);
+        addLog("✅ Commande envoyée au serveur");
+      }
     });
   };
 
+  /* Arrêt manuel */
   const stopAttack = () => {
-    socket.emit("stopAttack");
+    console.log("🛑 Arrêt manuel de l'attaque");
+    
+    // Nettoyer le timer local
+    if (attackTimerRef.current) {
+      clearTimeout(attackTimerRef.current);
+      attackTimerRef.current = null;
+      console.log("⏱️ Timer de sécurité annulé");
+    }
+
+    socket.timeout(5000).emit("stopAttack", (err, response) => {
+      if (err) {
+        console.error("❌ Timeout lors de l'envoi de stopAttack:", err);
+      } else {
+        console.log("✅ Confirmation d'arrêt:", response);
+      }
+    });
+    
     setIsAttacking(false);
-    addLog("⏹ Simulation arrêtée");
+    addLog("⏹ Simulation arrêtée manuellement");
   };
+
+  // Nettoyage du timer au démontage du composant
+  useEffect(() => {
+    return () => {
+      if (attackTimerRef.current) {
+        clearTimeout(attackTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -251,9 +393,13 @@ function SimulationPage() {
                 </label>
                 <input
                   type="number"
-                  value={8080}
+                  value={port}
+                  onChange={(e) => setPort(Number(e.target.value))}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   disabled={isAttacking}
+                  min={1}
+                  max={65535}
+                  step={1}
                 />
               </div>
 
@@ -282,15 +428,24 @@ function SimulationPage() {
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
                   Taille des paquets (octets)
                 </label>
+                {/* [MODIF] clamp + bornes UI 1..256 */}
                 <input
                   type="number"
                   value={packetSize}
-                  onChange={(e) => setPacketSize(Number(e.target.value))}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    const clamped = Math.max(SAFE_MIN_PACKET_BYTES, Math.min(SAFE_MAX_PACKET_BYTES, n));
+                    setPacketSize(clamped);
+                  }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   disabled={isAttacking}
-                  min="1"
-                  max="1500"
+                  min={SAFE_MIN_PACKET_BYTES}
+                  max={SAFE_MAX_PACKET_BYTES}
+                  step={1}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Limité à {SAFE_MAX_PACKET_BYTES} octets (démo pédagogique).
+                </p>
               </div>
 
               {/* Durée */}
@@ -298,18 +453,27 @@ function SimulationPage() {
                 <label className="block mb-2 text-sm font-semibold text-gray-700">
                   Durée (secondes)
                 </label>
+                {/* [MODIF] clamp + bornes UI 1..10 */}
                 <input
                   type="number"
                   value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    const clamped = Math.max(SAFE_MIN_DURATION_SEC, Math.min(SAFE_MAX_DURATION_SEC, n));
+                    setDuration(clamped);
+                  }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   disabled={isAttacking}
-                  min="1"
-                  max="300"
+                  min={SAFE_MIN_DURATION_SEC}
+                  max={SAFE_MAX_DURATION_SEC}
+                  step={1}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Limité à {SAFE_MAX_DURATION_SEC} secondes (démo pédagogique).
+                </p>
               </div>
 
-              {/* Bouton Lancer */}
+              {/* Bouton Lancer / Arrêter */}
               <button
                 onClick={() => (isAttacking ? stopAttack() : startAttack())}
                 className={`w-full py-4 rounded-lg font-semibold text-white text-lg transition-colors ${
@@ -319,14 +483,6 @@ function SimulationPage() {
                 }`}
               >
                 {isAttacking ? "Arrêter la simulation" : "Lancer la simulation"}
-              </button>
-
-              {/* Bouton Config */}
-              <button
-                onClick={() => setOpenedConfig(true)}
-                className="w-full py-3 border border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Configuration avancée
               </button>
             </div>
           </div>
@@ -382,10 +538,6 @@ function SimulationPage() {
           </p>
         </div>
       </div>
-
-      {openedConfig && (
-        <ConfigureProxiesAndAgentsView onClose={() => setOpenedConfig(false)} />
-      )}
     </div>
   );
 }

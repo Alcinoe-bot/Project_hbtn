@@ -28,9 +28,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /**
-   * Hydrate le profil (email + role) depuis la table public.profiles.
-   */
   const hydrateUser = async (id: string, fallbackEmail: string) => {
     const { data, error } = await supabase
       .from("profiles")
@@ -43,54 +40,63 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser({ id, email: fallbackEmail, role: "USER" });
       return;
     }
-    if (data) {
-      setUser({ id, email: data.email, role: (data.role as Role) ?? "USER" });
-    } else {
-      setUser({ id, email: fallbackEmail, role: "USER" });
-    }
+    if (data) setUser({ id, email: data.email, role: (data.role as Role) ?? "USER" });
+    else setUser({ id, email: fallbackEmail, role: "USER" });
   };
 
-  // Initialisation + écoute des changements d’auth
   useEffect(() => {
-    const init = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) console.error("[Auth] getSession error:", error.message);
-      if (session?.user) {
-        // Optimistic set pour débloquer l’UI immédiatement
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? "",
-          role: "USER",
-        });
-        await hydrateUser(session.user.id, session.user.email ?? "");
+    let mounted = true;
+
+    (async () => {
+      try {
+        console.log("[Auth] init: getSession…");
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) console.error("[Auth] getSession error:", error.message);
+
+        if (session?.user) {
+          // état optimiste immédiat (évite écran blanc)
+          const fallbackEmail = session.user.email ?? "";
+          setUser({ id: session.user.id, email: fallbackEmail, role: "USER" });
+          // hydratation en arrière-plan (ne bloque pas l’UI)
+          hydrateUser(session.user.id, fallbackEmail).catch((e) =>
+            console.warn("[Auth] hydrate async error:", e?.message || e)
+          );
+        } else {
+          setUser(null);
+        }
+      } catch (e: any) {
+        console.error("[Auth] init exception:", e?.message ?? String(e));
+        setUser(null);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          console.log("[Auth] init: loading=false");
+        }
       }
-      setLoading(false);
-    };
-    void init();
+    })();
 
     const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? "",
-          role: "USER",
-        });
-        await hydrateUser(session.user.id, session.user.email ?? "");
+        const fallbackEmail = session.user.email ?? "";
+        setUser({ id: session.user.id, email: fallbackEmail, role: "USER" });
+        hydrateUser(session.user.id, fallbackEmail).catch((e) =>
+          console.warn("[Auth] hydrate async error:", e?.message || e)
+        );
       } else {
         setUser(null);
       }
     });
 
-    return () => data?.subscription?.unsubscribe();
+    return () => {
+      mounted = false;
+      data?.subscription?.unsubscribe();
+    };
   }, []);
 
-  // Connexion : setUser immédiat + hydratation asynchrone
   const login = async (email: string, password: string): Promise<Result> => {
     console.log("[Auth] login()", email);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       console.warn("[Auth] login error:", error.message);
       return { ok: false, message: error.message };
@@ -98,7 +104,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     if (data?.user) {
       const uid = data.user.id;
       const mail = data.user.email ?? email;
-      setUser({ id: uid, email: mail, role: "USER" }); // débloque tout de suite
+      setUser({ id: uid, email: mail, role: "USER" }); // optimiste
       hydrateUser(uid, mail).catch((e) =>
         console.warn("[Auth] hydrate async error:", e?.message || e)
       );
@@ -106,17 +112,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return { ok: true };
   };
 
-  // Inscription : si confirm email activé -> message sans session
   const register = async (email: string, password: string): Promise<Result> => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { ok: false, message: error.message };
 
     if (!data.session) {
-      // pas de session tant que l’email n’est pas confirmé
-      return {
-        ok: true,
-        message: "Inscription réussie. Vérifie ton email pour confirmer.",
-      };
+      return { ok: true, message: "Inscription réussie. Vérifie ton email pour confirmer." };
     }
 
     if (data.user) {
@@ -130,32 +131,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return { ok: true };
   };
 
-  const logout = async (): Promise<void> => {
+  const logout = async () => {
     console.log("[Auth] logout()");
-    // Optimistic: vide immédiatement l'état pour mettre à jour l'UI
-    setUser(null);
+    setUser(null); // optimiste
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("[Auth] signOut error:", error.message);
-      // (Optionnel) afficher un toast et éventuellement recharger la page
-    }
+    if (error) console.error("[Auth] signOut error:", error.message);
   };
 
   const value = useMemo(
-    () => ({
-      user,
-      loading,
-      login,
-      register,
-      logout,
-      isAdmin: user?.role === "ADMIN",
-    }),
+    () => ({ user, loading, login, register, logout, isAdmin: user?.role === "ADMIN" }),
     [user, loading]
   );
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
@@ -164,11 +152,6 @@ export function useAuth() {
   return ctx;
 }
 
-/**
- * Route protégée :
- * - redirige vers /account si non connecté
- * - redirige vers /not-allowed si un rôle ADMIN est requis
- */
 export function ProtectedRoute({
   children,
   role,
@@ -176,10 +159,17 @@ export function ProtectedRoute({
   const { user, loading, isAdmin } = useAuth();
   const location = useLocation();
 
-  if (loading) return null;
+  if (loading) {
+    // petit placeholder inline pour éviter un écran noir si tu préfères
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
   if (!user) return <Navigate to="/account" state={{ from: location }} replace />;
-  if (role === "ADMIN" && !isAdmin)
-    return <Navigate to="/not-allowed" replace />;
+  if (role === "ADMIN" && !isAdmin) return <Navigate to="/not-allowed" replace />;
 
   return <>{children}</>;
 }
