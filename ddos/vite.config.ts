@@ -5,10 +5,16 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": {
-        target: "http://localhost:4000",
+      // Proxy WebSocket Socket.IO
+      "/socket.io": {
+        target: "http://localhost:3000",
         changeOrigin: true,
-        rewrite: p => p.replace(/^\/api/, "")
+        ws: true
+      },
+      // (optionnel) si tu utilises /configuration côté client
+      "/configuration": {
+        target: "http://localhost:3000",
+        changeOrigin: true
       }
     }
   }

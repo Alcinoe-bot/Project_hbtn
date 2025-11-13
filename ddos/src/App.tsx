@@ -7,8 +7,14 @@ import AccountPage from "./pages/AccountPage";
 import NotAllowed from "./pages/NotAllowed";
 import { ProtectedRoute, useAuth } from "./context/AuthContext";
 
+// Import pages de défense
+import { HttpBypassDefense } from "./pages/HttpBypassDefense";
+import { HttpFloodDefense } from "./pages/HttpFloodDefense";
+import { HttpSlowlorisDefense } from "./pages/HttpSlowlorisDefense";
+import { TcpFloodDefense } from "./pages/TcpFloodDefense";
+import { MinecraftPingDefense } from "./pages/MinecraftPingDefense";
+
 function AppShell() {
-  // Affiche un écran de chargement le temps que Supabase hydrate la session
   const { loading } = useAuth();
 
   if (loading) {
@@ -32,7 +38,7 @@ function AppShell() {
           <Route path="/account" element={<AccountPage />} />
           <Route path="/not-allowed" element={<NotAllowed />} />
 
-          {/* Protégées : redirection vers /account si non connecté */}
+          {/* Protégées */}
           <Route
             path="/simulate"
             element={
@@ -49,6 +55,13 @@ function AppShell() {
               </ProtectedRoute>
             }
           />
+
+          {/* Pages de défense - Publiques */}
+          <Route path="/defense/http-flood" element={<HttpFloodDefense />} />
+          <Route path="/defense/http-bypass" element={<HttpBypassDefense />} />
+          <Route path="/defense/http-slowloris" element={<HttpSlowlorisDefense />} />
+          <Route path="/defense/tcp-flood" element={<TcpFloodDefense />} />
+          <Route path="/defense/minecraft-ping" element={<MinecraftPingDefense />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

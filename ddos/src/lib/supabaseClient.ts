@@ -6,4 +6,15 @@ const anon = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? "").trim();
 console.log("[SUPABASE] URL:", url);
 console.log("[SUPABASE] ANON present:", !!anon);
 
-export const supabase = createClient(url, anon);
+export const supabase = createClient(url, anon, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 5,
+    },
+  },
+});
