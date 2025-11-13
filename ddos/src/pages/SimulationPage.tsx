@@ -22,28 +22,35 @@ function isHostLocal(host: string) {
   );
 }
 
+// 👉 NOUVELLE LOGIQUE: utilise VITE_SOCKET_URL en priorité
 function getSocketURL() {
-  const host = window.location.hostname;
-  const isLocal = isHostLocal(host);
-  const socketURL = isLocal ? `http://localhost:3000` : "/";
-  console.log("🌐 Socket URL configurée:", socketURL);
-  return socketURL;
+  const envUrl = import.meta.env.VITE_SOCKET_URL as string | undefined;
+
+  if (envUrl && envUrl.length > 0) {
+    console.log("🌐 Socket URL (env VITE_SOCKET_URL):", envUrl);
+    return envUrl;
+  }
+
+  // Fallback pour le dev si pas de variable d'env
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const isLocal = isHostLocal(host);
+    const socketURL = isLocal ? "http://localhost:3000" : window.location.origin;
+    console.log("🌐 Socket URL (fallback):", socketURL);
+    return socketURL;
+  }
+
+  // Fallback ultime (build tools, etc.)
+  return "http://localhost:3000";
 }
 
-// Validation de l'IP
-function isValidIP(ip: string): boolean {
-  const parts = ip.split('.');
-  if (parts.length !== 4) return false;
-  return parts.every(part => {
-    const num = parseInt(part, 10);
-    return !isNaN(num) && num >= 0 && num <= 255 && part === num.toString();
-  });
-}
+const SOCKET_URL = getSocketURL();
 
-const socket = io(getSocketURL(), {
+const socket = io(SOCKET_URL, {
   reconnection: true,
   reconnectionDelay: 1000,
-  reconnectionAttempts: 5
+  reconnectionAttempts: 5,
+  transports: ["websocket", "polling"],
 });
 
 socket.on("connect", () => {
@@ -53,6 +60,16 @@ socket.on("connect", () => {
 socket.on("disconnect", (reason) => {
   console.log("❌ Socket.IO déconnecté - Raison:", reason);
 });
+
+// Validation de l'IP
+function isValidIP(ip: string): boolean {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every((part) => {
+    const num = parseInt(part, 10);
+    return !isNaN(num) && num >= 0 && num <= 255 && part === num.toString();
+  });
+}
 
 function SimulationPage() {
   const navigate = useNavigate();
@@ -75,10 +92,18 @@ function SimulationPage() {
 
   const [target, setTarget] = useState(saved?.target || "");
   const [port, setPort] = useState<number>(saved?.port || 8080);
-  const [attackMethod, setAttackMethod] = useState(saved?.attackMethod || "http_flood");
-  const [packetSize, setPacketSize] = useState<number>(saved?.packetSize || SAFE_MAX_PACKET_BYTES);
-  const [duration, setDuration] = useState<number>(saved?.duration || SAFE_MAX_DURATION_SEC);
-  const [packetDelay, setPacketDelay] = useState<number>(saved?.packetDelay || 100);
+  const [attackMethod, setAttackMethod] = useState(
+    saved?.attackMethod || "http_flood"
+  );
+  const [packetSize, setPacketSize] = useState<number>(
+    saved?.packetSize || SAFE_MAX_PACKET_BYTES
+  );
+  const [duration, setDuration] = useState<number>(
+    saved?.duration || SAFE_MAX_DURATION_SEC
+  );
+  const [packetDelay, setPacketDelay] = useState<number>(
+    saved?.packetDelay || 100
+  );
 
   const [stats, setStats] = useState({
     pps: 0,
@@ -98,7 +123,14 @@ function SimulationPage() {
 
   // Sauvegarder dans localStorage
   useEffect(() => {
-    const data = { target, port, attackMethod, packetSize, duration, packetDelay };
+    const data = {
+      target,
+      port,
+      attackMethod,
+      packetSize,
+      duration,
+      packetDelay,
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [target, port, attackMethod, packetSize, duration, packetDelay]);
 
@@ -163,14 +195,19 @@ function SimulationPage() {
 
       // ✅ MISE À JOUR STATS FINALES
       if (simulationIdRef.current && attackStartTimeRef.current) {
-        const durationActual = Math.floor((Date.now() - attackStartTimeRef.current) / 1000);
-        const consoleBlob = consoleLogsRef.current.slice().reverse().join("\n");
+        const durationActual = Math.floor(
+          (Date.now() - attackStartTimeRef.current) / 1000
+        );
+        const consoleBlob = consoleLogsRef.current
+          .slice()
+          .reverse()
+          .join("\n");
 
         console.log("📊 Mise à jour stats:", {
           id: simulationIdRef.current,
           max_pps: maxPpsRef.current,
           total_packets: totalPacketsRef.current,
-          duration_actual: durationActual
+          duration_actual: durationActual,
         });
 
         try {
@@ -206,8 +243,9 @@ function SimulationPage() {
     socket.on("attackError", async (data: any) => {
       console.error("❌ Erreur attaque:", data);
       setIsAttacking(false);
-      
-      const errorMessage = data.message || data.error || "Échec de l'attaque";
+
+      const errorMessage =
+        data.message || data.error || "Échec de l'attaque";
       addLog("❌ Erreur: " + errorMessage);
 
       if (attackTimerRef.current) {
@@ -217,8 +255,13 @@ function SimulationPage() {
 
       // Mise à jour DB avec statut failed
       if (simulationIdRef.current && attackStartTimeRef.current) {
-        const durationActual = Math.floor((Date.now() - attackStartTimeRef.current) / 1000);
-        const consoleBlob = consoleLogsRef.current.slice().reverse().join("\n");
+        const durationActual = Math.floor(
+          (Date.now() - attackStartTimeRef.current) / 1000
+        );
+        const consoleBlob = consoleLogsRef.current
+          .slice()
+          .reverse()
+          .join("\n");
 
         try {
           const { error } = await supabase
@@ -277,17 +320,27 @@ function SimulationPage() {
       alert("Port invalide (1-65535)");
       return;
     }
-    if (packetSize < SAFE_MIN_PACKET_BYTES || packetSize > SAFE_MAX_PACKET_BYTES) {
-      alert(`Taille invalide (${SAFE_MIN_PACKET_BYTES}-${SAFE_MAX_PACKET_BYTES} octets)`);
+    if (
+      packetSize < SAFE_MIN_PACKET_BYTES ||
+      packetSize > SAFE_MAX_PACKET_BYTES
+    ) {
+      alert(
+        `Taille invalide (${SAFE_MIN_PACKET_BYTES}-${SAFE_MAX_PACKET_BYTES} octets)`
+      );
       return;
     }
-    if (duration < SAFE_MIN_DURATION_SEC || duration > SAFE_MAX_DURATION_SEC) {
-      alert(`Durée invalide (${SAFE_MIN_DURATION_SEC}-${SAFE_MAX_DURATION_SEC}s)`);
+    if (
+      duration < SAFE_MIN_DURATION_SEC ||
+      duration > SAFE_MAX_DURATION_SEC
+    ) {
+      alert(
+        `Durée invalide (${SAFE_MIN_DURATION_SEC}-${SAFE_MAX_DURATION_SEC}s)`
+      );
       return;
     }
 
     if (!socket.connected) {
-      addLog("❌ Socket non connecté");
+      addLog("❌ Socket non connecté - tentative de reconnexion...");
       socket.connect();
       return;
     }
@@ -313,7 +366,10 @@ function SimulationPage() {
     // ✅ SAUVEGARDE DANS SUPABASE
     try {
       console.log("🔐 Récupération user...");
-      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+      const {
+        data: { user: authUser },
+        error: authErr,
+      } = await supabase.auth.getUser();
 
       if (authErr) {
         console.error("❌ Erreur auth:", authErr);
@@ -373,32 +429,36 @@ function SimulationPage() {
     }, (duration + 2) * 1000);
 
     // Envoyer au serveur
-    socket.timeout(5000).emit("startAttack", attackData, (err: any, response: any) => {
-      if (err) {
-        console.error("❌ Timeout");
-        addLog("❌ Pas de réponse serveur (timeout)");
-        setIsAttacking(false);
-        
-        if (attackTimerRef.current) {
-          clearTimeout(attackTimerRef.current);
-          attackTimerRef.current = null;
-        }
+    socket.timeout(5000).emit(
+      "startAttack",
+      attackData,
+      (err: any, response: any) => {
+        if (err) {
+          console.error("❌ Timeout");
+          addLog("❌ Pas de réponse serveur (timeout)");
+          setIsAttacking(false);
 
-        // Marquer comme failed dans la DB
-        if (simulationIdRef.current) {
-          supabase
-            .from("simulations")
-            .update({
-              status: "failed",
-              console: consoleLogsRef.current.slice().reverse().join("\n"),
-            })
-            .eq("id", simulationIdRef.current);
+          if (attackTimerRef.current) {
+            clearTimeout(attackTimerRef.current);
+            attackTimerRef.current = null;
+          }
+
+          // Marquer comme failed dans la DB
+          if (simulationIdRef.current) {
+            supabase
+              .from("simulations")
+              .update({
+                status: "failed",
+                console: consoleLogsRef.current.slice().reverse().join("\n"),
+              })
+              .eq("id", simulationIdRef.current);
+          }
+        } else {
+          console.log("✅ Serveur OK:", response);
+          addLog("✅ Commande envoyée");
         }
-      } else {
-        console.log("✅ Serveur OK:", response);
-        addLog("✅ Commande envoyée");
       }
-    });
+    );
   };
 
   const stopAttack = async () => {
@@ -412,8 +472,13 @@ function SimulationPage() {
 
     // Mise à jour DB : canceled + console
     if (simulationIdRef.current && attackStartTimeRef.current) {
-      const durationActual = Math.floor((Date.now() - attackStartTimeRef.current) / 1000);
-      const consoleBlob = consoleLogsRef.current.slice().reverse().join("\n");
+      const durationActual = Math.floor(
+        (Date.now() - attackStartTimeRef.current) / 1000
+      );
+      const consoleBlob = consoleLogsRef.current
+        .slice()
+        .reverse()
+        .join("\n");
 
       try {
         const { error } = await supabase
@@ -461,7 +526,9 @@ function SimulationPage() {
 
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Configuration du test</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              Configuration du test
+            </h2>
 
             <div className="space-y-6">
               <div>
@@ -521,7 +588,10 @@ function SimulationPage() {
                   value={packetSize}
                   onChange={(e) => {
                     const n = Number(e.target.value);
-                    const clamped = Math.max(SAFE_MIN_PACKET_BYTES, Math.min(SAFE_MAX_PACKET_BYTES, n));
+                    const clamped = Math.max(
+                      SAFE_MIN_PACKET_BYTES,
+                      Math.min(SAFE_MAX_PACKET_BYTES, n)
+                    );
                     setPacketSize(clamped);
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
@@ -543,7 +613,10 @@ function SimulationPage() {
                   value={duration}
                   onChange={(e) => {
                     const n = Number(e.target.value);
-                    const clamped = Math.max(SAFE_MIN_DURATION_SEC, Math.min(SAFE_MAX_DURATION_SEC, n));
+                    const clamped = Math.max(
+                      SAFE_MIN_DURATION_SEC,
+                      Math.min(SAFE_MAX_DURATION_SEC, n)
+                    );
                     setDuration(clamped);
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
@@ -570,7 +643,9 @@ function SimulationPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Console de résultats</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              Console de résultats
+            </h2>
 
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="text-center">
